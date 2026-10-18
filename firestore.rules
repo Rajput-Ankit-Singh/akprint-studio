@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Jobs, prices, agents, audit events, and idempotency documents are server-owned.
+    // Operators must use callable functions so state transitions remain atomic and audited.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

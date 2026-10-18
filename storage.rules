@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // A signed-in (including anonymous) customer may create a private upload only
+    // beneath their UID. No browser read, overwrite, list, or delete is permitted.
+    match /shops/{shopId}/uploads/{uid}/{fileName} {
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.size < 25 * 1024 * 1024
+                    && request.resource.contentType.matches('application/(pdf|msword|vnd\\.openxmlformats-officedocument\\..+)|image/(jpeg|png|webp)|text/plain');
+      allow read, update, delete: if false;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env*
+!.env.example
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.vercel/
+
+agent/bin/
+agent/obj/
+agent/publish/

@@ -1,0 +1,8 @@
+{
+  "CyberPrintAgent": {
+    "ApiBaseUrl": "https://localhost:5001/",
+    "AgentId": "development-agent",
+    "ShopId": "development-shop",
+    "AllowedPrinterName": "TEST PRINTER - DO NOT PRINT"
+  }
+}
