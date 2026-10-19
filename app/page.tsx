@@ -318,19 +318,11 @@ export default function Home() {
         <h2>Fast In-Tab Adjustments</h2>
         <p>Quick batch cropping and multi-item sheet packing right inside this tab.</p>
       </header>
-      <div className="tool-tabs" role="tablist">
-        {tools.map((tool) => (
-          <button
-            key={tool.id}
-            className={`tool-tab ${workspace === tool.id ? "active" : ""} ${tool.tint}`}
-            onClick={() => setWorkspace(tool.id)}
-            role="tab"
-            aria-selected={workspace === tool.id}
-          >
-            <span className="tool-icon">{tool.icon}</span>
-            <span><strong>{tool.title}</strong><small>{tool.subtitle}</small></span>
-            <span className="arrow">↗</span>
-          </button>
+      <div className="category-grid">
+        {Array.from(new Set(TOOLS_REGISTRY.map(t => t.category))).map((cat) => (
+          <Link key={cat} href={`/${cat}`} className="category-card">
+            <h3 className="category-title">{cat.charAt(0).toUpperCase() + cat.slice(1)}</h3>
+          </Link>
         ))}
       </div>
       <div className="workbench">

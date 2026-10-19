@@ -3,6 +3,8 @@
 import { ChangeEvent, PointerEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { warpPerspective, Point, Quad, estimateQuadDimensions } from "@/lib/perspective";
+import UploadZone from "@/components/UploadZone";
+import StickyLayout from "@/components/StickyLayout";
 import { imagesToPdf, createPdfBlob } from "@/lib/pdf";
 
 interface DocSide {
@@ -42,46 +44,42 @@ export default function DocumentCropPage() {
   const activeSide = sides[activeSideIndex];
 
   // Load new images
-  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
-    if (!files.length) return;
+  function handleFiles(files: FileList) {
+  const fileArray = Array.from(files).filter((f) => f.type.startsWith("image/"));
+  if (!fileArray.length) return;
 
-    files.forEach((file) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth;
-        const h = img.naturalHeight;
-        // Default quad inset 5%
-        const quad: Quad = {
-          topLeft: { x: w * 0.06, y: h * 0.06 },
-          topRight: { x: w * 0.94, y: h * 0.06 },
-          bottomRight: { x: w * 0.94, y: h * 0.94 },
-          bottomLeft: { x: w * 0.06, y: h * 0.94 },
-        };
-
-        const newSide: DocSide = {
-          id: `${file.name}-${Date.now()}-${Math.random()}`,
-          name: file.name,
-          url,
-          imgElement: img,
-          width: w,
-          height: h,
-          quad,
-          croppedCanvas: null,
-          brightness: 100,
-          contrast: 100,
-          rotation: 0,
-        };
-
-        setSides((prev) => [...prev, newSide]);
-        setStatus(`Loaded "${file.name}". Adjust the 4 corner handles and click Apply Crop.`);
+  fileArray.forEach((file) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const quad: Quad = {
+        topLeft: { x: w * 0.06, y: h * 0.06 },
+        topRight: { x: w * 0.94, y: h * 0.06 },
+        bottomRight: { x: w * 0.94, y: h * 0.94 },
+        bottomLeft: { x: w * 0.06, y: h * 0.94 },
       };
-      img.src = url;
-    });
+      const newSide: DocSide = {
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        name: file.name,
+        url,
+        imgElement: img,
+        width: w,
+        height: h,
+        quad,
+        croppedCanvas: null,
+        brightness: 100,
+        contrast: 100,
+        rotation: 0,
+      };
+      setSides((prev) => [...prev, newSide]);
+      setStatus(`Loaded "${file.name}". Adjust the 4 corner handles and click Apply Crop.`);
+    };
+    img.src = url;
+  });
+}
 
-    e.target.value = "";
-  }
 
   // Pointer handling for 4-corner crop
   function handleCornerPointerDown(e: PointerEvent, corner: keyof Quad) {
@@ -309,7 +307,7 @@ export default function DocumentCropPage() {
   };
 
   return (
-    <div className="tool-page-container">
+    <StickyLayout preview={null} footer={null}>
       {/* Top Header */}
       <header className="tool-header">
         <div className="tool-header-inner wrap">
