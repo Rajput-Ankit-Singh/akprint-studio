@@ -1,8 +1,8 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export const CYBERPRINT_CONFIG = {
-  SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+  SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || "https://lyspjwfnupbumzlnrhuz.supabase.co",
+  SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5c3Bqd2ZudXBidW16bG5yaHV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNzM0NDYsImV4cCI6MjEwNzY0OTQ0Nn0.0I-o3p5BYktNDgl0oUH4W1FI79fcYWbnaLAfiEQXjtQ",
   SHOP_NAME: process.env.NEXT_PUBLIC_SHOP_NAME || "CyberPrint Pay",
   PRICE_BW: 5,
   PRICE_COLOR: 10,

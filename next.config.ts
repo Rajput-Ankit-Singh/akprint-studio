@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const isGithubActions = Boolean(process.env.GITHUB_ACTIONS);
 const repoName = process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split("/")[1] : "akprint-studio";
-const basePath = isGithubActions ? `/${repoName}` : "";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH !== undefined 
+  ? process.env.NEXT_PUBLIC_BASE_PATH 
+  : (isGithubActions ? `/${repoName}` : "");
 
 const nextConfig: NextConfig = {
   output: "export",
