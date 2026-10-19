@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import QRCode from "qrcode";
 import { getOperatorSupabase, isSupabaseConfigured, CYBERPRINT_CONFIG, DbPrintJob } from "@/lib/supabase";
 
@@ -334,12 +335,12 @@ export default function OperatorPage() {
   return (
     <main className="operator-page">
       <header className="operator-header">
-        <a className="cyberprint-brand" href="/" aria-label="Paperloop home">
+        <Link className="cyberprint-brand" href="/" aria-label="Paperloop home">
           <span className="cyberprint-brand-mark">C</span>
           <span>
             CyberPrint <b>Pay</b>
           </span>
-        </a>
+        </Link>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {isCloudConfigured ? (
             operatorUser ? (
@@ -374,9 +375,9 @@ export default function OperatorPage() {
             </button>
           )}
 
-          <a className="operator-home" href="/print" target="_blank" rel="noreferrer">
+          <Link className="operator-home" href="/print" target="_blank" rel="noreferrer">
             Customer View ↗
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -755,7 +756,7 @@ export default function OperatorPage() {
       <footer className="cyberprint-footer">
         <span>CYBERPRINT PAY</span>
         <p>Private upload · Operator-approved printing · 10-minute automated storage cleanup</p>
-        <a href="/">Back to Paperloop</a>
+        <Link href="/">Back to Paperloop</Link>
       </footer>
     </main>
   );

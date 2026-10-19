@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import QRCode from "qrcode";
 import { getCustomerSupabase, isSupabaseConfigured, CYBERPRINT_CONFIG } from "@/lib/supabase";
 
@@ -318,10 +319,10 @@ export default function PrintPage() {
   return (
     <main className="cyberprint-page">
       <header className="cyberprint-header">
-        <a className="cyberprint-brand" href="/" aria-label="Paperloop home">
+        <Link className="cyberprint-brand" href="/" aria-label="Paperloop home">
           <span className="cyberprint-brand-mark">C</span>
           <span>CyberPrint <b>Pay</b></span>
-        </a>
+        </Link>
         <span className="cyberprint-secure"><span aria-hidden="true">◉</span> Secure request</span>
       </header>
 
@@ -450,9 +451,9 @@ export default function PrintPage() {
             <button className="cyberprint-secondary" type="button" onClick={() => setJobState("editing")}>
               Create another request
             </button>
-            <a href="/operator" target="_blank" rel="noreferrer" className="cyberprint-secondary" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+            <Link href="/operator" target="_blank" rel="noreferrer" className="cyberprint-secondary" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
               Operator Console ↗
-            </a>
+            </Link>
           </div>
           <p className="cyberprint-fineprint">Your upload stays private and is only retained for your physical print session.</p>
         </section>
@@ -516,7 +517,7 @@ export default function PrintPage() {
         </section>
       )}
 
-      <footer className="cyberprint-footer"><span>CYBERPRINT PAY</span><p>Private upload · Counter payment · Operator-approved printing</p><a href="/">Back to Paperloop</a></footer>
+      <footer className="cyberprint-footer"><span>CYBERPRINT PAY</span><p>Private upload · Counter payment · Operator-approved printing</p><Link href="/">Back to Paperloop</Link></footer>
     </main>
   );
 }
