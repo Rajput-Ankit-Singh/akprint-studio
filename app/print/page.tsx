@@ -1,6 +1,8 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
+import { getCustomerSupabase, isSupabaseConfigured, CYBERPRINT_CONFIG } from "@/lib/supabase";
 
 type PrintMode = "bw" | "colour";
 type Orientation = "portrait" | "landscape";
@@ -8,6 +10,7 @@ type PaperSize = "A4" | "A3" | "A5" | "letter";
 type Duplex = "single" | "double";
 type QuoteState = "idle" | "pending" | "ready";
 type JobState = "editing" | "submitted";
+type JobStatus = "awaiting_payment" | "payment_received" | "approved" | "printing" | "completed" | "failed_review" | "cancelled";
 
 type LocalPrintJob = {
   id: string;
@@ -24,12 +27,14 @@ type LocalPrintJob = {
   orientation: Orientation;
   duplex: Duplex;
   amount: number;
-  status: "awaiting_payment";
+  status: JobStatus;
   createdAt: string;
 };
 
 const acceptedExtensions = [".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".xls", ".xlsx", ".csv", ".ods", ".ppt", ".pptx", ".odp"];
 const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"]);
+const DEFAULT_UPI_ID = "uniquehacker@axl";
+const BUSINESS_NAME = "CyberPrint Pay";
 
 function extensionOf(file: File) {
   return `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
@@ -64,6 +69,7 @@ function countSelectedPages(selection: string, pageCount: number) {
 
 export default function PrintPage() {
   const fileInput = useRef<HTMLInputElement>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [range, setRange] = useState("All pages");
   const [pageCount, setPageCount] = useState(1);
@@ -75,6 +81,9 @@ export default function PrintPage() {
   const [quoteState, setQuoteState] = useState<QuoteState>("idle");
   const [jobState, setJobState] = useState<JobState>("editing");
   const [queueNumber, setQueueNumber] = useState("");
+  const [submittedJob, setSubmittedJob] = useState<LocalPrintJob | null>(null);
+  const [liveStatus, setLiveStatus] = useState<JobStatus>("awaiting_payment");
+  const [copiedUpi, setCopiedUpi] = useState(false);
   const [error, setError] = useState("");
 
   const imagePage = Boolean(file && imageExtensions.has(extensionOf(file)));
@@ -84,6 +93,77 @@ export default function PrintPage() {
   const estimatedSides = useMemo(() => (selectedPages ?? 0) * Math.max(1, copies), [copies, selectedPages]);
   const rate = mode === "bw" ? 5 : 10;
 
+  const currentAmount = submittedJob ? submittedJob.amount : (estimatedSides * rate);
+  const transactionNote = `Print job ${queueNumber || "CP"}`;
+
+  const upiQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      pa: DEFAULT_UPI_ID,
+      pn: BUSINESS_NAME,
+      am: currentAmount.toFixed(2),
+      cu: "INR",
+      tn: transactionNote,
+    });
+    return params.toString();
+  }, [currentAmount, transactionNote]);
+
+  const universalUpiUri = `upi://pay?${upiQuery}`;
+  const gpayUri = `tez://upi/pay?${upiQuery}`;
+  const phonepeUri = `phonepe://pay?${upiQuery}`;
+  const paytmUri = `paytmmp://pay?${upiQuery}`;
+
+  useEffect(() => {
+    if (jobState === "submitted" && qrCanvasRef.current) {
+      QRCode.toCanvas(qrCanvasRef.current, universalUpiUri, {
+        width: 220,
+        margin: 1,
+        color: { dark: "#14281f", light: "#ffffff" },
+      });
+    }
+  }, [jobState, universalUpiUri]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reactive listener to operator desk state changes (Local & Supabase cloud)
+  useEffect(() => {
+    if (!queueNumber) return;
+    function checkLiveStatus() {
+      try {
+        const jobs = JSON.parse(window.localStorage.getItem("cyberprint-local-jobs") ?? "[]") as LocalPrintJob[];
+        const found = jobs.find((j) => j.queueNumber === queueNumber);
+        if (found) {
+          setLiveStatus(found.status);
+        }
+      } catch {}
+    }
+    window.addEventListener("storage", checkLiveStatus);
+    window.addEventListener("cyberprint-jobs-changed", checkLiveStatus);
+
+    // If Supabase is connected, poll the database directly
+    let timer: NodeJS.Timeout | null = null;
+    if (isSupabaseConfigured() && submittedJob?.id) {
+      const sb = getCustomerSupabase();
+      if (sb) {
+        timer = setInterval(async () => {
+          try {
+            const { data } = await sb.from("jobs").select("status").eq("id", submittedJob.id).single();
+            if (data?.status) {
+              if (data.status === "approved") setLiveStatus("approved");
+              else if (data.status === "rejected") setLiveStatus("failed_review");
+              else if (data.status === "cancelled") setLiveStatus("cancelled");
+            }
+          } catch {}
+        }, 5000);
+      }
+    }
+
+    return () => {
+      window.removeEventListener("storage", checkLiveStatus);
+      window.removeEventListener("cyberprint-jobs-changed", checkLiveStatus);
+      if (timer) clearInterval(timer);
+    };
+  }, [queueNumber, submittedJob]);
+
   function selectFile(selected?: File) {
     if (!selected) return;
     const extension = extensionOf(selected);
@@ -91,8 +171,8 @@ export default function PrintPage() {
       setError("This format is not supported. Choose a document, image, spreadsheet, or presentation from the supported list.");
       return;
     }
-    if (selected.size > 25 * 1024 * 1024) {
-      setError("This file is larger than the 25 MB customer upload limit.");
+    if (selected.size > (CYBERPRINT_CONFIG.MAX_FILE_MB || 20) * 1024 * 1024) {
+      setError(`This file is larger than the ${CYBERPRINT_CONFIG.MAX_FILE_MB || 20} MB upload limit.`);
       return;
     }
     setFile(selected);
@@ -122,19 +202,117 @@ export default function PrintPage() {
     window.setTimeout(() => setQuoteState("ready"), 650);
   }
 
-  function submitJob() {
+  async function submitJob() {
     if (!file || quoteState !== "ready" || !selectedPages) return;
+    setIsSubmitting(true);
+    setError("");
+    const calculatedAmount = estimatedSides * rate;
+
+    // 1. Supabase Cloud Upload if configured
+    if (isSupabaseConfigured()) {
+      const sb = getCustomerSupabase();
+      if (sb) {
+        try {
+          const jobId = crypto.randomUUID();
+          const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+          const storagePath = `${jobId}/${safeName}`;
+
+          const { error: uploadErr } = await sb.storage
+            .from(CYBERPRINT_CONFIG.BUCKET || "jobs")
+            .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+          if (uploadErr) throw uploadErr;
+
+          const { error: insertErr } = await sb.from("jobs").insert({
+            id: jobId,
+            file_name: file.name,
+            file_path: storagePath,
+            file_type: file.type,
+            page_count: selectedPages,
+            copies: copies,
+            color_mode: mode === "colour" ? "color" : "bw",
+            paper_size: paperSize,
+            orientation: orientation,
+            status: "pending",
+          });
+
+          if (insertErr) throw insertErr;
+
+          const shortCode = jobId.replace(/-/g, "").slice(0, 6).toUpperCase();
+          const job: LocalPrintJob = {
+            id: jobId,
+            queueNumber: shortCode,
+            fileName: file.name,
+            fileType: fileKind(file),
+            fileSize: file.size,
+            pageCount,
+            pageSelection: range.trim() || "All pages",
+            selectedPages,
+            copies,
+            printMode: mode,
+            paperSize,
+            orientation,
+            duplex,
+            amount: calculatedAmount,
+            status: "awaiting_payment",
+            createdAt: new Date().toISOString(),
+          };
+
+          const existing = JSON.parse(window.localStorage.getItem("cyberprint-local-jobs") ?? "[]") as LocalPrintJob[];
+          window.localStorage.setItem("cyberprint-local-jobs", JSON.stringify([job, ...existing]));
+          window.dispatchEvent(new Event("cyberprint-jobs-changed"));
+
+          setQueueNumber(shortCode);
+          setSubmittedJob(job);
+          setLiveStatus("awaiting_payment");
+          setJobState("submitted");
+          setIsSubmitting(false);
+          return;
+        } catch (err: unknown) {
+          console.warn("Supabase upload failed, using local counter mode:", err);
+          // Fall through to local mode
+        }
+      }
+    }
+
+    // 2. Seamless Local Desk fallback
     const nextQueueNumber = `CP-${Math.floor(1000 + Math.random() * 9000)}`;
     const job: LocalPrintJob = {
-      id: crypto.randomUUID(), queueNumber: nextQueueNumber, fileName: file.name, fileType: fileKind(file), fileSize: file.size,
-      pageCount, pageSelection: range.trim() || "All pages", selectedPages, copies, printMode: mode, paperSize, orientation, duplex,
-      amount: estimatedSides * rate, status: "awaiting_payment", createdAt: new Date().toISOString(),
+      id: crypto.randomUUID(),
+      queueNumber: nextQueueNumber,
+      fileName: file.name,
+      fileType: fileKind(file),
+      fileSize: file.size,
+      pageCount,
+      pageSelection: range.trim() || "All pages",
+      selectedPages,
+      copies,
+      printMode: mode,
+      paperSize,
+      orientation,
+      duplex,
+      amount: calculatedAmount,
+      status: "awaiting_payment",
+      createdAt: new Date().toISOString(),
     };
     const existing = JSON.parse(window.localStorage.getItem("cyberprint-local-jobs") ?? "[]") as LocalPrintJob[];
     window.localStorage.setItem("cyberprint-local-jobs", JSON.stringify([job, ...existing]));
     window.dispatchEvent(new Event("cyberprint-jobs-changed"));
     setQueueNumber(nextQueueNumber);
+    setSubmittedJob(job);
+    setLiveStatus("awaiting_payment");
     setJobState("submitted");
+    setIsSubmitting(false);
+  }
+
+  function copyUpiId() {
+    navigator.clipboard.writeText(DEFAULT_UPI_ID);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2500);
+  }
+
+  function redirectToApp(uri: string) {
+    window.location.href = uri;
   }
 
   return (
@@ -158,14 +336,125 @@ export default function PrintPage() {
           <div className="cyberprint-status-icon" aria-hidden="true">✓</div>
           <p className="cyberprint-kicker">REQUEST RECEIVED</p>
           <h2>Queue number <span>{queueNumber}</span></h2>
-          <p className="cyberprint-status-copy">Show this number at the counter to pay. Your job is waiting for payment confirmation and will not print automatically.</p>
+          <p className="cyberprint-status-copy">
+            Pay online using the amount-locked QR below, select your preferred UPI app, or pay cash at the counter.
+          </p>
+
+          {/* Amount-Locked Customer Payment Card */}
+          <div className="customer-payment-card">
+            <div className="customer-qr-section">
+              <div className="customer-qr-frame">
+                <canvas ref={qrCanvasRef} />
+              </div>
+              <div className="customer-amount-pill">
+                <span>LOCKED TOTAL:</span>
+                <strong>₹{currentAmount.toFixed(2)}</strong>
+              </div>
+              <small style={{ marginTop: "6px", color: "#64748b", fontSize: "11px" }}>
+                Scan with Google Pay, PhonePe, Paytm, or BHIM on another device
+              </small>
+            </div>
+
+            {/* Direct Mobile UPI App Redirection */}
+            <div className="customer-upi-redirect-block">
+              <h4 className="customer-upi-redirect-title">Or Pay Directly on This Phone:</h4>
+              <div className="customer-upi-grid">
+                <a
+                  href={gpayUri}
+                  className="upi-app-button gpay-btn"
+                  onClick={() => redirectToApp(gpayUri)}
+                  title="Open Google Pay with locked amount"
+                >
+                  <span style={{ fontSize: "14px" }}>🟢</span>
+                  <span>Google Pay</span>
+                </a>
+                <a
+                  href={phonepeUri}
+                  className="upi-app-button phonepe-btn"
+                  onClick={() => redirectToApp(phonepeUri)}
+                  title="Open PhonePe with locked amount"
+                >
+                  <span style={{ fontSize: "14px" }}>🟣</span>
+                  <span>PhonePe</span>
+                </a>
+                <a
+                  href={paytmUri}
+                  className="upi-app-button paytm-btn"
+                  onClick={() => redirectToApp(paytmUri)}
+                  title="Open Paytm with locked amount"
+                >
+                  <span style={{ fontSize: "14px" }}>🔵</span>
+                  <span>Paytm</span>
+                </a>
+                <a
+                  href={universalUpiUri}
+                  className="upi-app-button bhim-btn"
+                  onClick={() => redirectToApp(universalUpiUri)}
+                  title="Open Any Installed UPI App"
+                >
+                  <span style={{ fontSize: "14px" }}>🟠</span>
+                  <span>Any UPI App</span>
+                </a>
+              </div>
+
+              <div className="customer-upi-copy-row">
+                <span>Shop UPI ID:</span>
+                <code>{DEFAULT_UPI_ID}</code>
+                <button type="button" className="customer-copy-btn" onClick={copyUpiId}>
+                  {copiedUpi ? "✓ Copied!" : "Copy VPA"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Real-time Operator Status Feedback */}
+          {liveStatus === "payment_received" || liveStatus === "approved" ? (
+            <div className="customer-payment-received-alert">
+              ✓ Payment Received! Operator has verified ₹{currentAmount} and approved printing.
+            </div>
+          ) : liveStatus === "printing" ? (
+            <div className="customer-payment-received-alert" style={{ background: "#e0f2fe", color: "#0369a1", borderColor: "#7dd3fc" }}>
+              🖨️ Printing in progress! Your physical pages are printing now.
+            </div>
+          ) : liveStatus === "completed" ? (
+            <div className="customer-payment-received-alert" style={{ background: "#dcfce7", color: "#15803d", borderColor: "#86efac" }}>
+              🎉 Print completed! Please collect your documents at the counter.
+            </div>
+          ) : null}
+
           <ol className="cyberprint-timeline">
-            <li className="is-done"><span>1</span><div><strong>Request submitted</strong><small>Your document and settings were recorded.</small></div></li>
-            <li className="is-current"><span>2</span><div><strong>Pay at the counter</strong><small>Give the queue number to the operator.</small></div></li>
-            <li><span>3</span><div><strong>Print in progress</strong><small>We’ll update this page when the printer finishes.</small></div></li>
+            <li className="is-done">
+              <span>1</span>
+              <div>
+                <strong>Request submitted</strong>
+                <small>Job {queueNumber} recorded for ₹{currentAmount.toFixed(2)} ({submittedJob?.selectedPages ?? selectedPages} pages × {submittedJob?.copies ?? copies} copies).</small>
+              </div>
+            </li>
+            <li className={liveStatus === "awaiting_payment" ? "is-current" : "is-done"}>
+              <span>2</span>
+              <div>
+                <strong>{liveStatus === "awaiting_payment" ? "Pay via UPI or Counter" : "Payment confirmed"}</strong>
+                <small>{liveStatus === "awaiting_payment" ? "Tap your preferred app above or pay cash at desk." : "Operator verified the payment."}</small>
+              </div>
+            </li>
+            <li className={liveStatus === "printing" ? "is-current" : liveStatus === "completed" ? "is-done" : ""}>
+              <span>3</span>
+              <div>
+                <strong>{liveStatus === "completed" ? "Completed" : liveStatus === "printing" ? "Printing in progress" : "Print release"}</strong>
+                <small>{liveStatus === "completed" ? "Pages ready at counter." : "Document prints once operator approves."}</small>
+              </div>
+            </li>
           </ol>
-          <button className="cyberprint-secondary" type="button" onClick={() => setJobState("editing")}>Create another request</button>
-          <p className="cyberprint-fineprint">The counter can collect cash or a locked UPI amount from the Operator panel.</p>
+
+          <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "24px" }}>
+            <button className="cyberprint-secondary" type="button" onClick={() => setJobState("editing")}>
+              Create another request
+            </button>
+            <a href="/operator" target="_blank" rel="noreferrer" className="cyberprint-secondary" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+              Operator Console ↗
+            </a>
+          </div>
+          <p className="cyberprint-fineprint">Your upload stays private and is only retained for your physical print session.</p>
         </section>
       ) : (
         <section className="cyberprint-workflow" aria-label="Create a print request">
@@ -218,7 +507,9 @@ export default function PrintPage() {
                 <p>{quoteState === "ready" ? `${selectedPages} printed ${selectedPages === 1 ? "side" : "sides"} × ${copies} ${copies === 1 ? "copy" : "copies"} × ₹${rate}. ${duplex === "double" ? "Double-sided availability is confirmed by the operator." : "One-sided print."}` : "The server validates file safety and confirms this requested price before a job is accepted."}</p>
                 {file && quoteState !== "pending" && <button type="button" className="cyberprint-text-button" onClick={requestQuote}>{quoteState === "ready" ? "Refresh quote" : "Check file first"}</button>}
               </div>
-              <button className="cyberprint-submit" type="button" disabled={!file || quoteState !== "ready"} onClick={submitJob}>Submit print request <span aria-hidden="true">→</span></button>
+              <button className="cyberprint-submit" type="button" disabled={!file || quoteState !== "ready" || isSubmitting} onClick={submitJob}>
+                {isSubmitting ? "Uploading & creating queue…" : "Submit print request"} <span aria-hidden="true">→</span>
+              </button>
               <p className="cyberprint-fineprint">No printing happens at submission. Pay first, then an operator approves the request.</p>
             </aside>
           </div>

@@ -1,7 +1,9 @@
 "use client";
 
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import QRCode from "qrcode";
+import { TOOLS_REGISTRY, ToolItem } from "@/lib/tools-registry";
 
 type Workspace = "document" | "photo" | "payment";
 type Upload = { id: string; name: string; url: string };
@@ -47,6 +49,23 @@ export default function Home() {
   const [status, setStatus] = useState("Choose images to begin a local print job.");
   const qrCanvas = useRef<HTMLCanvasElement>(null);
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+
+  // Directory Search & Filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCat, setSelectedCat] = useState<string>("all");
+
+  const filteredTools = useMemo(() => {
+    return TOOLS_REGISTRY.filter((tool) => {
+      const matchCat = selectedCat === "all" || tool.category === selectedCat;
+      const query = searchQuery.toLowerCase().trim();
+      const matchQuery =
+        !query ||
+        tool.title.toLowerCase().includes(query) ||
+        tool.subtitle.toLowerCase().includes(query) ||
+        tool.tags.some((t) => t.toLowerCase().includes(query));
+      return matchCat && matchQuery;
+    });
+  }, [searchQuery, selectedCat]);
 
   const activeImage = uploads[activeUpload];
   const printableWidth = 210 - margin * 2;
@@ -188,31 +207,333 @@ export default function Home() {
   const pageTitle = workspace === "document" ? "Make paper photos print-ready" : workspace === "photo" ? "Build a polished photo sheet" : "Lock a payment amount in a QR";
 
   return <main>
-    <section className="hero-shell"><nav className="nav wrap"><a className="brand" href="#top"><span className="brand-mark">P</span><span>paperloop</span></a><div className="nav-links"><a href="/print">CyberPrint Pay</a><a href="/operator">Operator desk</a><a href="#tools">Tools</a><a href="#privacy">Privacy</a><button className="nav-cta" onClick={() => document.getElementById("tools")?.scrollIntoView({ behavior: "smooth" })}>Open studio</button></div></nav>
-      <div className="hero wrap" id="top"><div className="hero-copy"><p className="eyebrow"><span className="pulse" />Browser-first print preparation</p><h1>Everyday print work, <em>made calm.</em></h1><p className="lede">Prepare your own files privately, or send a paid print request to the counter through CyberPrint Pay. Images in Studio stay in this browser tab.</p><div className="hero-actions"><a className="primary" href="/print">CyberPrint Pay <span>→</span></a><button className="hero-secondary" onClick={() => document.getElementById("tools")?.scrollIntoView({ behavior: "smooth" })}>Open local studio</button></div></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-a" /><div className="orbit orbit-b" /><div className="paper-stack"><div className="mini-photo photo-one" /><div className="mini-photo photo-two" /><div className="mini-page"><span /><span /><span /><b /></div></div><div className="hero-note">A4 ready<br /><strong>100% scale</strong></div></div></div>
+    <section className="hero-shell">
+      <nav className="nav wrap">
+        <Link className="brand" href="/"><span className="brand-mark">A</span><span>AkPrint Studio</span></Link>
+        <div className="nav-links">
+          <Link href="/tools/document-crop">Document Crop</Link>
+          <Link href="/tools/passport-photo">Passport Photo</Link>
+          <Link href="/tools/id-card-print">Smart ID / PVC</Link>
+          <Link href="/tools/pdf-tools">PDF Tools</Link>
+          <Link href="/tools/portal-directory">Citizen Portals</Link>
+          <Link href="/print">CyberPrint Pay</Link>
+          <Link href="/operator">Operator</Link>
+          <button className="nav-cta" onClick={() => document.getElementById("directory")?.scrollIntoView({ behavior: "smooth" })}>All Tools (15+)</button>
+        </div>
+      </nav>
+
+      <div className="hero wrap" id="top">
+        <div className="hero-copy">
+          <p className="eyebrow"><span className="pulse" />100% Free · Unlimited · Zero Subscriptions</p>
+          <h1>Everyday print work, <em>without paywalls.</em></h1>
+          <p className="lede">
+            Complete, private tools for cyber cafes, print shops, and students: 4-corner document straightening,
+            passport photo sheets, double-sided ID/PVC layouts, PDF utilities, resumes, and payment QRs. Everything processes
+            securely in your browser with zero limits.
+          </p>
+          <div className="hero-actions">
+            <button className="primary" onClick={() => document.getElementById("directory")?.scrollIntoView({ behavior: "smooth" })}>
+              Explore All Tools <span>→</span>
+            </button>
+            <Link className="hero-secondary" href="/tools/document-crop">Open AI Document Crop</Link>
+            <Link className="hero-secondary" href="/tools/passport-photo">Passport Photo Studio</Link>
+          </div>
+        </div>
+
+        <div className="hero-art" aria-hidden="true">
+          <div className="orbit orbit-a" />
+          <div className="orbit orbit-b" />
+          <div className="paper-stack">
+            <div className="mini-photo photo-one" />
+            <div className="mini-photo photo-two" />
+            <div className="mini-page"><span /><span /><span /><b /></div>
+          </div>
+          <div className="hero-note">100% Private<br /><strong>Zero Server Upload</strong></div>
+        </div>
+      </div>
     </section>
-    <section className="studio wrap" id="tools"><header className="section-heading"><p className="eyebrow">A focused toolkit</p><h2>Choose a job, make it yours.</h2><p>Built around physical print sizes, not guesswork.</p></header>
-      <div className="tool-tabs" role="tablist">{tools.map((tool) => <button key={tool.id} className={`tool-tab ${workspace === tool.id ? "active" : ""} ${tool.tint}`} onClick={() => setWorkspace(tool.id)} role="tab" aria-selected={workspace === tool.id}><span className="tool-icon">{tool.icon}</span><span><strong>{tool.title}</strong><small>{tool.subtitle}</small></span><span className="arrow">↗</span></button>)}</div>
-      <div className="workbench"><section className="controls-card"><div className="card-title"><div><p className="eyebrow">{workspace === "payment" ? "Payment desk" : workspace === "photo" ? "Portrait desk" : "Document desk"}</p><h3>{pageTitle}</h3></div><span className="local-pill">Local session</span></div>
-      {workspace !== "payment" ? <>
-        <p className="card-description">Drag in the preview to position a crop. Add a batch, set the physical layout, then print or export locally.</p>
-        <label className="upload-zone"><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={onFileChange} /><span className="upload-icon">↑</span><span><strong>{uploads.length ? "Add more images" : "Select images"}</strong><small>{uploads.length ? `${uploads.length} local image${uploads.length > 1 ? "s" : ""} ready` : "PNG, JPG or WebP · batch supported"}</small></span><span className="browse">Browse</span></label>
-        {uploads.length > 0 && <div className="upload-list">{uploads.map((upload, index) => <button className={index === activeUpload ? "active" : ""} key={upload.id} onClick={() => setActiveUpload(index)}><span>{index + 1}</span>{upload.name}</button>)}</div>}
-        <div className="control-grid two"><label>{workspace === "photo" ? "Photo format" : "Output format"}{workspace === "photo" ? <select value={photoSize.name} onChange={(event) => setPhotoSize(photoSizes.find((size) => size.name === event.target.value) ?? photoSizes[0])}>{photoSizes.map((size) => <option key={size.name}>{size.name}</option>)}</select> : <select><option>A4 document</option><option>ID card</option><option>Custom slip</option></select>}</label><label>Copies<div className="stepper"><button onClick={() => setCopies((value) => Math.max(1, value - 1))}>−</button><output>{copies}</output><button onClick={() => setCopies((value) => Math.min(120, value + 1))}>+</button></div></label></div>
-        <div className="control-grid two"><label>Margin <span>{margin} mm</span><input type="range" min="2" max="20" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></label><label>Gap <span>{gap} mm</span><input type="range" min="0" max="12" value={gap} onChange={(event) => setGap(Number(event.target.value))} /></label></div>
-        <div className="control-grid two"><label>Brightness <span>{brightness}%</span><input type="range" min="60" max="140" value={brightness} onChange={(event) => setBrightness(Number(event.target.value))} /></label><label>Contrast <span>{contrast}%</span><input type="range" min="60" max="140" value={contrast} onChange={(event) => setContrast(Number(event.target.value))} /></label></div>
-        <div className="control-grid two"><label>JPG quality <span>{quality}%</span><input type="range" min="40" max="100" value={quality} onChange={(event) => setQuality(Number(event.target.value))} /></label><label>Target size <span>{targetKb ? `${targetKb} KB` : "off"}</span><input type="range" min="0" max="1000" step="50" value={targetKb} onChange={(event) => setTargetKb(Number(event.target.value))} /></label></div>
-        <div className="control-grid two"><label>Zoom <span>{zoom}%</span><input type="range" min="100" max="180" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label><label>Edge trim <span>{trim}%</span><input type="range" min="0" max="20" value={trim} onChange={(event) => setTrim(Number(event.target.value))} /></label></div>
-        <div className="control-grid two"><label>Straighten <span>{straighten}°</span><input type="range" min="-12" max="12" value={straighten} onChange={(event) => setStraighten(Number(event.target.value))} /></label><label>Caption<input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Optional print caption" /></label></div>
-        <div className="rotate-actions"><button type="button" onClick={() => setRotation((value) => (value - 90 + 360) % 360)}>↶ 90° left</button><button type="button" onClick={() => setRotation((value) => (value + 90) % 360)}>90° right ↷</button><button type="button" onClick={resetCrop}>Reset crop</button><label className="check-toggle"><input checked={showBorder} type="checkbox" onChange={(event) => setShowBorder(event.target.checked)} /> Print border</label></div>
-        <div className="tip"><span>✦</span><p><strong>{status}</strong><br />Settings are saved on this device. Image files remain only in this active tab.</p></div>
-      </> : <><p className="card-description">Generate a fixed-amount UPI URI locally. This demo does not confirm or process payments.</p><div className="field-stack"><label>Receiver name<input value={merchant} onChange={(event) => setMerchant(event.target.value)} /></label><label>UPI ID<input value={upiId} onChange={(event) => setUpiId(event.target.value)} /></label><label>Fixed amount (₹)<input value={amount} type="number" min="0" onChange={(event) => setAmount(event.target.value)} /></label></div><div className="amount-chips">{[50, 100, 200, 500].map((value) => <button key={value} onClick={() => setAmount(String(value))}>₹{value}</button>)}</div><div className="tip"><span>⌘</span><p><strong>Local by design.</strong> Receiver details are only used to make the QR URI in this browser.</p></div></>}
-      </section>
-      <section className="preview-card"><div className="preview-top"><div><span className="preview-label">LIVE PREVIEW</span><strong>{workspace === "payment" ? "QR card" : `A4 · ${columns} × ${rows} layout · ${capacity} per sheet`}</strong></div><div className="preview-actions"><button className="ghost" onClick={() => window.print()}>{workspace === "payment" ? "Print card" : "Print sheet"} ↗</button>{workspace !== "payment" && <><button className="ghost" onClick={exportCurrent} disabled={!activeImage}>Save JPG</button><button className="ghost" onClick={exportBatch} disabled={!uploads.length}>Save batch</button></>}</div></div>
-      {workspace === "payment" ? <div className="qr-stage"><div className="qr-card"><p>Scan to pay</p><canvas ref={qrCanvas} /><strong>{merchant || "Paperloop Studio"}</strong><span>{Number(amount) > 0 ? `₹${amount} fixed amount` : "Open amount"}</span><small>{upiId || "studio@upi"}</small></div><code>{upiUri}</code></div> : <div className="paper-preview" style={{ padding: `${margin * 1.15}px` }}><div className="paper-header"><span>paperloop / {workspace === "document" ? "document repair" : "photo sheet"}</span><span>{shownCopies} of {copies} copies</span></div><div className="sheet-grid" style={{ gap: `${gap * 1.4}px` }}>{Array.from({ length: shownCopies }).map((_, index) => { const upload = uploads[index % Math.max(uploads.length, 1)]; return <div className={`print-item ${workspace} ${showBorder ? "with-border" : "no-border"}`} key={index} style={{ width: workspace === "photo" ? mmToPreview(photoSize.width) : 132, height: workspace === "photo" ? mmToPreview(photoSize.height) : 88 }}><div className="image-frame crop-frame" onPointerDown={index === 0 ? onPointerDown : undefined} onPointerMove={index === 0 ? onPointerMove : undefined} onPointerUp={index === 0 ? onPointerEnd : undefined} onPointerCancel={onPointerEnd}>{upload ? <img src={upload.url} alt="Selected item preview" style={imageStyle} draggable={false} /> : <div className="placeholder-art"><i /><i /><i /></div>}</div>{caption && <small className="print-caption">{caption}</small>}{workspace === "document" && <span className="crop-corners" />}</div>; })}</div><div className="paper-footer"><span>{workspace === "photo" ? `${photoSize.width} × ${photoSize.height} mm` : "Drag the first item to adjust crop"}</span><span>Check one test print</span></div></div>}</section></div>
+
+    {/* Section: Comprehensive Tool Directory */}
+    <section className="tool-directory-section wrap" id="directory">
+      <header className="section-heading">
+        <p className="eyebrow">Tool Directory</p>
+        <h2>All Cyber Cafe & Print Tools in One Place</h2>
+        <p>No account required. Instant, high-resolution exports for daily paperwork.</p>
+      </header>
+
+      {/* Directory Search & Filter Bar */}
+      <div className="search-filter-box">
+        <input
+          type="text"
+          className="portal-search-input"
+          placeholder="Search any tool (e.g. crop, passport, aadhaar, pvc, merge pdf, resume, resize, biodata, qr)..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <div className="cat-filter-pills">
+          {[
+            { id: "all", label: "All Tools" },
+            { id: "document", label: "Document Crop & Sheet" },
+            { id: "photo", label: "Passport & Photo Studio" },
+            { id: "idcard", label: "Smart ID & PVC Cards" },
+            { id: "pdf", label: "PDF & Image Utilities" },
+            { id: "design", label: "Creative Design Studio" },
+            { id: "counter", label: "Counter & Pay QR" },
+            { id: "portals", label: "Citizen Portals" },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              className={`cat-pill ${selectedCat === cat.id ? "active" : ""}`}
+              onClick={() => setSelectedCat(cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tool Cards Grid */}
+      <div className="tool-directory-grid">
+        {filteredTools.map((tool) => (
+          <Link key={tool.id} href={tool.href} className="tool-directory-card">
+            <div className="tool-card-icon-row">
+              <span className="tool-card-icon">{tool.icon}</span>
+              {tool.badge && <span className="tool-card-badge">{tool.badge}</span>}
+            </div>
+            <h3 className="tool-card-title">{tool.title}</h3>
+            <p className="tool-card-sub">{tool.subtitle}</p>
+            <div className="tool-card-footer">
+              <span>Open Tool</span>
+              <span>→</span>
+            </div>
+          </Link>
+        ))}
+      </div>
     </section>
-    <section className="process wrap"><div className="section-heading"><p className="eyebrow">Simple by default</p><h2>From file to counter in three clear steps.</h2></div><div className="steps"><article><span>01</span><h3>Bring your files</h3><p>Select a document image or add a batch. Everything stays in your browser tab.</p></article><article><span>02</span><h3>Set a real size</h3><p>Choose copies, margins and spacing in millimetres, then use the calculated A4 grid.</p></article><article><span>03</span><h3>Review, export or print</h3><p>Save adjusted JPGs or use the live sheet as a preflight check before printing.</p></article></div></section>
-    <section className="privacy wrap" id="privacy"><div><p className="eyebrow">Designed for sensitive paperwork</p><h2>Private by default.<br /><em>Clear about limits.</em></h2></div><div className="privacy-copy"><p>Images selected in this MVP stay in the active tab. There is no account, cloud upload, payment confirmation or automatic printer control.</p><div className="privacy-list"><span>◌ Browser-first crop and export</span><span>◌ Batch-ready local adjustments</span><span>◌ Print only after your review</span></div></div></section>
-    <footer className="footer wrap"><a className="brand" href="#top"><span className="brand-mark">P</span><span>paperloop</span></a><p>Original clean-room interface for practical document preparation.</p><span>© 2026 Paperloop Studio</span></footer>
+
+    {/* Quick In-Browser Workbench (Preserved & Enhanced) */}
+    <section className="studio wrap" id="tools">
+      <header className="section-heading">
+        <p className="eyebrow">Quick Workbench</p>
+        <h2>Fast In-Tab Adjustments</h2>
+        <p>Quick batch cropping and multi-item sheet packing right inside this tab.</p>
+      </header>
+      <div className="tool-tabs" role="tablist">
+        {tools.map((tool) => (
+          <button
+            key={tool.id}
+            className={`tool-tab ${workspace === tool.id ? "active" : ""} ${tool.tint}`}
+            onClick={() => setWorkspace(tool.id)}
+            role="tab"
+            aria-selected={workspace === tool.id}
+          >
+            <span className="tool-icon">{tool.icon}</span>
+            <span><strong>{tool.title}</strong><small>{tool.subtitle}</small></span>
+            <span className="arrow">↗</span>
+          </button>
+        ))}
+      </div>
+      <div className="workbench">
+        <section className="controls-card">
+          <div className="card-title">
+            <div>
+              <p className="eyebrow">{workspace === "payment" ? "Payment desk" : workspace === "photo" ? "Portrait desk" : "Document desk"}</p>
+              <h3>{pageTitle}</h3>
+            </div>
+            <span className="local-pill">Local session</span>
+          </div>
+          {workspace !== "payment" ? <>
+            <p className="card-description">Drag in the preview to position a crop. Add a batch, set physical margins, and print or export locally.</p>
+            <label className="upload-zone">
+              <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={onFileChange} />
+              <span className="upload-icon">↑</span>
+              <span><strong>{uploads.length ? "Add more images" : "Select images"}</strong><small>{uploads.length ? `${uploads.length} local image${uploads.length > 1 ? "s" : ""} ready` : "PNG, JPG or WebP · batch supported"}</small></span>
+              <span className="browse">Browse</span>
+            </label>
+            {uploads.length > 0 && <div className="upload-list">{uploads.map((upload, index) => <button className={index === activeUpload ? "active" : ""} key={upload.id} onClick={() => setActiveUpload(index)}><span>{index + 1}</span>{upload.name}</button>)}</div>}
+            <div className="control-grid two">
+              <label>{workspace === "photo" ? "Photo format" : "Output format"}
+                {workspace === "photo" ? (
+                  <select value={photoSize.name} onChange={(event) => setPhotoSize(photoSizes.find((size) => size.name === event.target.value) ?? photoSizes[0])}>
+                    {photoSizes.map((size) => <option key={size.name}>{size.name}</option>)}
+                  </select>
+                ) : (
+                  <select><option>A4 document</option><option>ID card</option><option>Custom slip</option></select>
+                )}
+              </label>
+              <label>Copies
+                <div className="stepper">
+                  <button onClick={() => setCopies((value) => Math.max(1, value - 1))}>−</button>
+                  <output>{copies}</output>
+                  <button onClick={() => setCopies((value) => Math.min(120, value + 1))}>+</button>
+                </div>
+              </label>
+            </div>
+            <div className="control-grid two">
+              <label>Margin <span>{margin} mm</span><input type="range" min="2" max="20" value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></label>
+              <label>Gap <span>{gap} mm</span><input type="range" min="0" max="12" value={gap} onChange={(event) => setGap(Number(event.target.value))} /></label>
+            </div>
+            <div className="control-grid two">
+              <label>Brightness <span>{brightness}%</span><input type="range" min="60" max="140" value={brightness} onChange={(event) => setBrightness(Number(event.target.value))} /></label>
+              <label>Contrast <span>{contrast}%</span><input type="range" min="60" max="140" value={contrast} onChange={(event) => setContrast(Number(event.target.value))} /></label>
+            </div>
+            <div className="control-grid two">
+              <label>JPG quality <span>{quality}%</span><input type="range" min="40" max="100" value={quality} onChange={(event) => setQuality(Number(event.target.value))} /></label>
+              <label>Target size <span>{targetKb ? `${targetKb} KB` : "off"}</span><input type="range" min="0" max="1000" step="50" value={targetKb} onChange={(event) => setTargetKb(Number(event.target.value))} /></label>
+            </div>
+            <div className="control-grid two">
+              <label>Zoom <span>{zoom}%</span><input type="range" min="100" max="180" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
+              <label>Edge trim <span>{trim}%</span><input type="range" min="0" max="20" value={trim} onChange={(event) => setTrim(Number(event.target.value))} /></label>
+            </div>
+            <div className="control-grid two">
+              <label>Straighten <span>{straighten}°</span><input type="range" min="-12" max="12" value={straighten} onChange={(event) => setStraighten(Number(event.target.value))} /></label>
+              <label>Caption<input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Optional print caption" /></label>
+            </div>
+            <div className="rotate-actions">
+              <button type="button" onClick={() => setRotation((value) => (value - 90 + 360) % 360)}>↶ 90° left</button>
+              <button type="button" onClick={() => setRotation((value) => (value + 90) % 360)}>90° right ↷</button>
+              <button type="button" onClick={resetCrop}>Reset crop</button>
+              <label className="check-toggle"><input checked={showBorder} type="checkbox" onChange={(event) => setShowBorder(event.target.checked)} /> Print border</label>
+            </div>
+            <div className="tip"><span>✦</span><p><strong>{status}</strong><br />Settings are saved on this device. Image files remain only in this active tab.</p></div>
+          </> : <>
+            <p className="card-description">Generate a fixed-amount UPI URI locally. This demo does not confirm or process payments.</p>
+            <div className="field-stack">
+              <label>Receiver name<input value={merchant} onChange={(event) => setMerchant(event.target.value)} /></label>
+              <label>UPI ID<input value={upiId} onChange={(event) => setUpiId(event.target.value)} /></label>
+              <label>Fixed amount (₹)<input value={amount} type="number" min="0" onChange={(event) => setAmount(event.target.value)} /></label>
+            </div>
+            <div className="amount-chips">{[50, 100, 200, 500].map((value) => <button key={value} onClick={() => setAmount(String(value))}>₹{value}</button>)}</div>
+            <div className="tip"><span>⌘</span><p><strong>Local by design.</strong> Receiver details are only used to make the QR URI in this browser.</p></div>
+          </>}
+        </section>
+        <section className="preview-card">
+          <div className="preview-top">
+            <div>
+              <span className="preview-label">LIVE PREVIEW</span>
+              <strong>{workspace === "payment" ? "QR card" : `A4 · ${columns} × ${rows} layout · ${capacity} per sheet`}</strong>
+            </div>
+            <div className="preview-actions">
+              <button className="ghost" onClick={() => window.print()}>{workspace === "payment" ? "Print card" : "Print sheet"} ↗</button>
+              {workspace !== "payment" && <>
+                <button className="ghost" onClick={exportCurrent} disabled={!activeImage}>Save JPG</button>
+                <button className="ghost" onClick={exportBatch} disabled={!uploads.length}>Save batch</button>
+              </>}
+            </div>
+          </div>
+          {workspace === "payment" ? (
+            <div className="qr-stage">
+              <div className="qr-card">
+                <p>Scan to pay</p>
+                <canvas ref={qrCanvas} />
+                <strong>{merchant || "Paperloop Studio"}</strong>
+                <span>{Number(amount) > 0 ? `₹${amount} fixed amount` : "Open amount"}</span>
+                <small>{upiId || "studio@upi"}</small>
+              </div>
+              <code>{upiUri}</code>
+            </div>
+          ) : (
+            <div className="paper-preview" style={{ padding: `${margin * 1.15}px` }}>
+              <div className="paper-header">
+                <span>paperloop / {workspace === "document" ? "document repair" : "photo sheet"}</span>
+                <span>{shownCopies} of {copies} copies</span>
+              </div>
+              <div className="sheet-grid" style={{ gap: `${gap * 1.4}px` }}>
+                {Array.from({ length: shownCopies }).map((_, index) => {
+                  const upload = uploads[index % Math.max(uploads.length, 1)];
+                  return (
+                    <div
+                      className={`print-item ${workspace} ${showBorder ? "with-border" : "no-border"}`}
+                      key={index}
+                      style={{ width: workspace === "photo" ? mmToPreview(photoSize.width) : 132, height: workspace === "photo" ? mmToPreview(photoSize.height) : 88 }}
+                    >
+                      <div
+                        className="image-frame crop-frame"
+                        onPointerDown={index === 0 ? onPointerDown : undefined}
+                        onPointerMove={index === 0 ? onPointerMove : undefined}
+                        onPointerUp={index === 0 ? onPointerEnd : undefined}
+                        onPointerCancel={onPointerEnd}
+                      >
+                        {upload ? <img src={upload.url} alt="Selected item preview" style={imageStyle} draggable={false} /> : <div className="placeholder-art"><i /><i /><i /></div>}
+                      </div>
+                      {caption && <small className="print-caption">{caption}</small>}
+                      {workspace === "document" && <span className="crop-corners" />}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="paper-footer">
+                <span>{workspace === "photo" ? `${photoSize.width} × ${photoSize.height} mm` : "Drag the first item to adjust crop"}</span>
+                <span>Check one test print</span>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+    </section>
+
+    {/* How it works */}
+    <section className="process wrap">
+      <div className="section-heading">
+        <p className="eyebrow">Practical by design</p>
+        <h2>Built for Indian Cyber Cafes & High-Volume Print Desks</h2>
+      </div>
+      <div className="steps">
+        <article>
+          <span>01</span>
+          <h3>Zero Server Upload</h3>
+          <p>Your documents, photos, signatures, and IDs are processed 100% inside your browser session.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>True 100% Print Scale</h3>
+          <p>Dimensions are calculated in actual millimetres for standard A4, 4×6 photo paper, and CR80 PVC cutters.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>No Subscriptions or Paywalls</h3>
+          <p>Enjoy unlimited crops, PDF operations, passport sheets, and biodatas without recharging tokens or Pro plans.</p>
+        </article>
+      </div>
+    </section>
+
+    {/* Privacy & Security */}
+    <section className="privacy wrap" id="privacy">
+      <div>
+        <p className="eyebrow">Privacy & Security Commitment</p>
+        <h2>Sensitive documents stay private.<br /><em>Period.</em></h2>
+      </div>
+      <div className="privacy-copy">
+        <p>
+          Unlike external websites that upload your WhatsApp documents to cloud servers, this studio runs image perspective warping,
+          PDF creation, and photo sheet packing using client-side JavaScript and Canvas APIs. No permanent file retention.
+        </p>
+        <div className="privacy-list">
+          <span>✓ 100% Client-side perspective correction and canvas rendering</span>
+          <span>✓ Pure client-side PDF merging and extraction (pdf-lib)</span>
+          <span>✓ No document content or identity numbers logged</span>
+          <span>✓ Free and open tools for the community</span>
+        </div>
+      </div>
+    </section>
+
+    {/* Footer */}
+    <footer className="footer wrap">
+      <div>
+        <Link className="brand" href="/"><span className="brand-mark">A</span><span>AkPrint Studio</span></Link>
+        <p style={{ marginTop: "6px" }}>Independent document and print utility suite. Not affiliated with any commercial provider.</p>
+      </div>
+      <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+        <Link href="/tools/document-crop">AI Document Crop</Link>
+        <Link href="/tools/passport-photo">Passport Photo</Link>
+        <Link href="/tools/id-card-print">ID Card Print</Link>
+        <Link href="/tools/photo-resize">Photo Resize</Link>
+        <Link href="/tools/pdf-tools">PDF Tools</Link>
+        <Link href="/tools/resume-maker">Resume Maker</Link>
+        <Link href="/tools/marriage-biodata">Marriage Biodata</Link>
+        <Link href="/tools/portal-directory">Citizen Portals</Link>
+      </div>
+      <span>© 2026 AkPrint Studio · Free & Unlimited</span>
+    </footer>
   </main>;
 }
