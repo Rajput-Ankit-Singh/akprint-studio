@@ -34,6 +34,7 @@ jobs:
         env:
           GITHUB_ACTIONS: "true"
           GITHUB_REPOSITORY: ${{ github.repository }}
+          NEXT_PUBLIC_BASE_PATH: "/akprint-studio"
           NEXT_PUBLIC_SUPABASE_URL: "https://lyspjwfnupbumzlnrhuz.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5c3Bqd2ZudXBidW16bG5yaHV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNzM0NDYsImV4cCI6MjEwNzY0OTQ0Nn0.0I-o3p5BYktNDgl0oUH4W1FI79fcYWbnaLAfiEQXjtQ"
           NEXT_PUBLIC_SHOP_NAME: "CyberPrint Pay"
